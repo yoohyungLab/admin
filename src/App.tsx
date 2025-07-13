@@ -1,35 +1,32 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { AdminLayout } from './components/layout/admin-layout';
+import { DashboardPage } from './pages/dashboard-page';
+import { TestListPage } from './pages/tests/test-list-page';
+import { CreateTestPage } from './pages/tests/create-test-page';
+import SectionManagementPage from './pages/sections/section-management-page';
+import SectionTestManagementPage from './pages/sections/section-test-management-page';
+import CategoryManagementPage from './pages/categories/category-management-page';
+import './App.css';
 
 function App() {
-  const [count, setCount] = useState(0)
-
-  return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    return (
+        <Router>
+            <AdminLayout>
+                <Routes>
+                    <Route path="/" element={<DashboardPage />} />
+                    <Route path="/tests" element={<TestListPage />} />
+                    <Route path="/tests/create" element={<CreateTestPage />} />
+                    <Route path="/sections" element={<SectionManagementPage />} />
+                    <Route path="/sections/:sectionId/tests" element={<SectionTestManagementPage />} />
+                    <Route path="/categories" element={<CategoryManagementPage />} />
+                    {/* 추가 라우트들은 나중에 구현 */}
+                    <Route path="/tests/:id/edit" element={<div>테스트 수정 페이지 (구현 예정)</div>} />
+                    <Route path="/results" element={<div>결과 관리 페이지 (구현 예정)</div>} />
+                    <Route path="/responses" element={<div>유저 응답 페이지 (구현 예정)</div>} />
+                </Routes>
+            </AdminLayout>
+        </Router>
+    );
 }
 
-export default App
+export default App;
