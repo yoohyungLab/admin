@@ -7,6 +7,7 @@ import SectionManagementPage from './pages/sections/section-management-page';
 import SectionTestManagementPage from './pages/sections/section-test-management-page';
 import CategoryManagementPage from './pages/categories/category-management-page';
 import './App.css';
+import { FeedbackListPage } from './pages/\bfeedback/feedback-list-page';
 
 function App() {
     return (
@@ -19,6 +20,8 @@ function App() {
                     <Route path="/sections" element={<SectionManagementPage />} />
                     <Route path="/sections/:sectionId/tests" element={<SectionTestManagementPage />} />
                     <Route path="/categories" element={<CategoryManagementPage />} />
+                    <Route path="/feedbacks" element={<FeedbackListPage />} />
+
                     {/* 추가 라우트들은 나중에 구현 */}
                     <Route path="/tests/:id/edit" element={<div>테스트 수정 페이지 (구현 예정)</div>} />
                     <Route path="/results" element={<div>결과 관리 페이지 (구현 예정)</div>} />

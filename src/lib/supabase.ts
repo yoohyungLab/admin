@@ -6,7 +6,7 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // 환경 변수 검증
 if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Missing Supabase environment variables: VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY must be set');
+    throw new Error('Missing Supabase environment variables');
 }
 
 // URL 유효성 검증
@@ -16,7 +16,90 @@ try {
     throw new Error(`Invalid Supabase URL: ${supabaseUrl}`);
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true,
+    },
+});
+
+// 건의사항 관리 API
+export const feedbackApi = {
+    // 모든 건의사항 조회 (관리자용)
+    async getAllFeedbacks() {
+        const { data, error } = await supabase.from('feedbacks').select('*').order('created_at', { ascending: false });
+
+        if (error) throw error;
+        return data || [];
+    },
+
+    // 건의사항 상세 조회
+    async getFeedbackById(id: string) {
+        const { data, error } = await supabase.from('feedbacks').select('*').eq('id', id).single();
+
+        if (error) throw error;
+        return data;
+    },
+
+    // 건의사항 상태 변경
+    async updateFeedbackStatus(id: string, status: string) {
+        const { data, error } = await supabase.from('feedbacks').update({ status }).eq('id', id).select().single();
+
+        if (error) throw error;
+        return data;
+    },
+
+    // 관리자 답변 추가
+    async addAdminReply(id: string, reply: string) {
+        const { data, error } = await supabase
+            .from('feedbacks')
+            .update({
+                admin_reply: reply,
+                admin_reply_at: new Date().toISOString(),
+                status: 'replied',
+            })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
+    },
+
+    // 건의사항 삭제
+    async deleteFeedback(id: string) {
+        const { error } = await supabase.from('feedbacks').delete().eq('id', id);
+
+        if (error) throw error;
+    },
+
+    // 건의사항 통계
+    async getFeedbackStats() {
+        const { data, error } = await supabase.from('feedbacks').select('status, created_at');
+
+        if (error) throw error;
+
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const thisWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        const stats = {
+            total: data?.length || 0,
+            pending: data?.filter((f) => f.status === 'pending').length || 0,
+            inProgress: data?.filter((f) => f.status === 'in_progress').length || 0,
+            completed: data?.filter((f) => f.status === 'completed').length || 0,
+            replied: data?.filter((f) => f.status === 'replied').length || 0,
+            rejected: data?.filter((f) => f.status === 'rejected').length || 0,
+            today: data?.filter((f) => new Date(f.created_at) >= today).length || 0,
+            thisWeek: data?.filter((f) => new Date(f.created_at) >= thisWeek).length || 0,
+            thisMonth: data?.filter((f) => new Date(f.created_at) >= thisMonth).length || 0,
+        };
+
+        return stats;
+    },
+};
 
 // 테스트 관련 API 함수들
 export const testApi = {
@@ -334,7 +417,7 @@ export const sectionApi = {
 export const categoryApi = {
     // 모든 카테고리 조회
     async getAllCategories() {
-        const { data, error } = await supabase.from('categories').select('*').order('order_index', { ascending: true });
+        const { data, error } = await supabase.from('categories').select('*').order('sort_order', { ascending: true });
 
         if (error) throw error;
         return data || [];
@@ -346,14 +429,14 @@ export const categoryApi = {
             .from('categories')
             .select('*')
             .eq('is_active', true)
-            .order('order_index', { ascending: true });
+            .order('sort_order', { ascending: true });
 
         if (error) throw error;
         return data || [];
     },
 
     // 카테고리 생성
-    async createCategory(category: { name: string; display_name: string; description?: string; color?: string; order_index?: number }) {
+    async createCategory(category: { name: string; display_name: string; description?: string; sort_order?: number; slug: string }) {
         const { data, error } = await supabase.from('categories').insert(category).select().single();
 
         if (error) throw error;
@@ -367,8 +450,8 @@ export const categoryApi = {
             name: string;
             display_name: string;
             description: string;
-            color: string;
-            order_index: number;
+            sort_order: number;
+            slug: string;
             is_active: boolean;
         }>
     ) {
