@@ -28,6 +28,7 @@ export function FeedbackListPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [showReplyModal, setShowReplyModal] = useState<string | null>(null);
     const [replyText, setReplyText] = useState('');
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         loadFeedbacks();
@@ -35,13 +36,28 @@ export function FeedbackListPage() {
 
     const loadFeedbacks = async () => {
         setLoading(true);
+        setError(null);
+
         try {
+            console.log('=== 건의사항 로딩 시작 ===');
             const data = await feedbackApi.getAllFeedbacks();
-            setFeedbacks(data);
+            console.log('조회된 건의사항:', data);
+
+            if (Array.isArray(data)) {
+                setFeedbacks(data);
+                console.log('상태에 저장된 데이터:', data.length, '개');
+            } else {
+                console.error('데이터가 배열이 아님:', data);
+                setError('데이터 형식이 올바르지 않습니다.');
+            }
         } catch (error) {
-            console.error('피드백 불러오기 실패:', error);
+            console.error('=== 피드백 불러오기 실패 ===');
+            console.error('에러:', error);
+            setError(error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.');
+        } finally {
+            setLoading(false);
+            console.log('로딩 완료');
         }
-        setLoading(false);
     };
 
     const handleStatusToggle = async (id: string, currentStatus: Feedback['status']) => {
@@ -64,9 +80,10 @@ export function FeedbackListPage() {
 
         try {
             await feedbackApi.updateFeedbackStatus(id, newStatus);
-            loadFeedbacks();
+            loadFeedbacks(); // 권한 재확인 후 다시 로드
         } catch (error) {
             console.error('상태 업데이트 실패:', error);
+            setError(error instanceof Error ? error.message : '상태 업데이트에 실패했습니다.');
         }
     };
 
@@ -77,9 +94,10 @@ export function FeedbackListPage() {
             await feedbackApi.addAdminReply(id, replyText);
             setShowReplyModal(null);
             setReplyText('');
-            loadFeedbacks();
+            loadFeedbacks(); // 권한 재확인 후 다시 로드
         } catch (error) {
             console.error('답변 추가 실패:', error);
+            setError(error instanceof Error ? error.message : '답변 추가에 실패했습니다.');
         }
     };
 
@@ -148,11 +166,30 @@ export function FeedbackListPage() {
         });
     };
 
+    // 권한 로직 제거됨
+
+    // 데이터 로딩 중인 경우
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <span className="ml-2">피드백을 불러오는 중...</span>
+                <span className="ml-2">건의사항을 불러오는 중...</span>
+            </div>
+        );
+    }
+
+    // 에러가 있는 경우
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center h-64 space-y-4">
+                <AlertCircle className="w-16 h-16 text-red-500" />
+                <div className="text-center">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">오류가 발생했습니다</h3>
+                    <p className="text-gray-600">{error}</p>
+                </div>
+                <Button onClick={loadFeedbacks} variant="outline">
+                    다시 시도
+                </Button>
             </div>
         );
     }

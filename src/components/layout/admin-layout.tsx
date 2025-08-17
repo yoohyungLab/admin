@@ -1,10 +1,7 @@
 import type { ReactNode } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
-
-interface AdminLayoutProps {
-    children: ReactNode;
-}
+import { useAdminAuth } from '../../hooks/useAdminAuth';
 
 type NavEntry =
     | {
@@ -49,53 +46,73 @@ const navigation: NavEntry[] = [
     { type: 'item', name: '설정', href: '/settings', icon: '⚙️', description: '시스템 설정', match: ['/settings'] },
 ];
 
+// 헬퍼 함수를 컴포넌트 외부로 이동
 function isActivePath(pathname: string, entry: NavEntry) {
     if (entry.type !== 'item') return false;
-    // 루트는 정확 매칭, 그 외는 prefix 매칭
     if (entry.href === '/') return pathname === '/';
     const prefixes = entry.match ?? [entry.href];
     return prefixes.some((p) => pathname === p || pathname.startsWith(p + '/'));
 }
 
-export function AdminLayout({ children }: AdminLayoutProps) {
+export function AdminLayout() {
     const location = useLocation();
     const navigate = useNavigate();
+    const { adminUser, loading, logout } = useAdminAuth();
+
+    // 모든 useState를 맨 위에 배치
     const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
         const saved = localStorage.getItem('admin.sidebarCollapsed');
-        return saved ? saved === '1' : window.matchMedia('(max-width: 1024px)').matches; // 작은 화면 기본 축소
+        return saved ? saved === '1' : window.matchMedia('(max-width: 1024px)').matches;
     });
     const [userMenuOpen, setUserMenuOpen] = useState(false);
 
+    // 모든 useEffect를 useState 다음에 배치
     useEffect(() => {
         localStorage.setItem('admin.sidebarCollapsed', sidebarCollapsed ? '1' : '0');
     }, [sidebarCollapsed]);
 
-    // 현재 페이지 메타(제목/설명)
+    // 인증 체크 로직
+    useEffect(() => {
+        if (!loading && !adminUser) {
+            console.log('인증되지 않은 사용자, /auth로 리다이렉트');
+            navigate('/auth');
+        }
+    }, [adminUser, loading, navigate]);
+
+    // 모든 useMemo를 useEffect 다음에 배치
     const currentMeta = useMemo(() => {
         const current = navigation.find((n) => n.type === 'item' && isActivePath(location.pathname, n)) as
             | Extract<NavEntry, { type: 'item' }>
             | undefined;
 
-        // 루트 예외: 활성 항목 못 찾을 경우 대시보드로 표시
         return current ?? (navigation[0] as Extract<NavEntry, { type: 'item' }>);
     }, [location.pathname]);
 
-    // 상단 CTA 노출 조건: 테스트 관련 화면에서 "테스트 만들기"
     const showCreateTestCTA = useMemo(() => {
         return location.pathname === '/tests' || location.pathname.startsWith('/tests/');
     }, [location.pathname]);
 
-    // 단축키: C → 테스트 생성 (테스트 관련 컨텍스트에서만)
-    useEffect(() => {
-        const onKey = (e: KeyboardEvent) => {
-            if ((e.key === 'c' || e.key === 'C') && showCreateTestCTA) {
-                e.preventDefault();
-                navigate('/tests/create');
-            }
-        };
-        window.addEventListener('keydown', onKey);
-        return () => window.removeEventListener('keydown', onKey);
-    }, [showCreateTestCTA, navigate]);
+    // 로딩 중일 때
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-screen">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <span className="ml-2">로딩 중...</span>
+            </div>
+        );
+    }
+
+    // 인증되지 않은 사용자일 때
+    if (!adminUser) {
+        return (
+            <div className="flex items-center justify-center h-screen">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600">인증 확인 중...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="admin-layout flex h-screen bg-gray-50 text-gray-900">
@@ -226,11 +243,11 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                                 aria-label="사용자 메뉴 열기"
                             >
                                 <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold">
-                                    A
+                                    {adminUser?.name?.charAt(0)}
                                 </div>
                                 <div className="hidden sm:block text-left">
-                                    <p className="text-sm font-medium text-gray-800">관리자</p>
-                                    <p className="text-xs text-gray-500">admin@typologylab.com</p>
+                                    <p className="text-sm font-medium text-gray-800">{adminUser?.name}</p>
+                                    <p className="text-xs text-gray-500">{adminUser?.username}</p>
                                 </div>
                                 <span className="text-gray-400" aria-hidden>
                                     ▼
@@ -249,9 +266,12 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                                         계정 설정
                                     </a>
                                     <hr className="my-1" />
-                                    <a href="#" className="block px-4 py-2 text-sm text-red-600 hover:bg-gray-50">
+                                    <button
+                                        onClick={logout}
+                                        className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50"
+                                    >
                                         로그아웃
-                                    </a>
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -260,7 +280,9 @@ export function AdminLayout({ children }: AdminLayoutProps) {
 
                 {/* 콘텐츠 */}
                 <main className="admin-content flex-1 overflow-auto p-4 md:p-6 bg-gray-50">
-                    <div className="animate-[fadeIn_200ms_ease-out]">{children}</div>
+                    <div className="animate-[fadeIn_200ms_ease-out]">
+                        <Outlet />
+                    </div>
                 </main>
             </div>
         </div>
